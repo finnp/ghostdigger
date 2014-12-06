@@ -6,6 +6,7 @@ window.onload = function () {
   canvas.height = 640
 
   var game = new Game(canvas.width, canvas.height)
+  game.controller = new Controller()
 
   document.body.appendChild(canvas)
   if(typeof canvas == 'string') canvas = getElementById(canvas.id) // in case browser returns string
@@ -18,9 +19,12 @@ window.onload = function () {
   // |
   // V
   //  ----------> x
-  
   var player = new Player(game)
-  player.setTilePos(3, 3)
+  player.setTilePos(10, 10)
+  game.tiles[10][10].isWall = false
+  game.tiles[11][10].isWall = false
+  game.tiles[12][10].isWall = false
+  game.tiles[13 ][10].isWall = false
 
   preload(startGame)
 
@@ -28,10 +32,10 @@ window.onload = function () {
     console.log('startGame')
     requestAnimationFrame(draw)
     function draw(timestamp) {
-      console.log('draw')
+      player.update()
       for(var i = 0; i < game.tilesY; i++) {
         for(var j = 0; j < game.tilesX; j++) {
-            var tileSprite =  game.tiles[i][j] ? images.wall : images.floor
+            var tileSprite =  game.tiles[i][j].isWall ? images.wall : images.floor
             context.drawImage(tileSprite,
               Math.floor(game.offsetX * j),
               Math.floor(game.offsetY * i),
@@ -40,11 +44,10 @@ window.onload = function () {
             )
          }
       }
-      console.log(player.pos)
       context.drawImage(images.player,
         player.pos.x, player.pos.y, game.offsetX, game.offsetY
       )
-      // requestAnimationFrame(draw)
+      requestAnimationFrame(draw)
     }
   }
 
@@ -73,6 +76,7 @@ window.onload = function () {
 
 //------CLASSES------//
 
+//GAME
 function Game(width, height) {
   var tiles = []
   var tilesX = 40
@@ -80,17 +84,11 @@ function Game(width, height) {
   for(var i = 0; i < tilesY; i++) {
     tiles[i] = []
     for(var j = 0; j < tilesX; j++) {
-      tiles[i][j] = 1
+      tiles[i][j] = new Tile()
     }
   }
 
-  tiles[10][10] = 0
-  tiles[11][10] = 0
-  tiles[12][10] = 0
-  tiles[13][10] = 0
-  tiles[14][10] = 0
-  tiles[15][10] = 0
-  
+
   this.width = width
   this.height = height
 
@@ -103,7 +101,7 @@ function Game(width, height) {
   this.tiles = tiles
 }
 
-
+//PLAYER
 function Player(game) {
   this.game = game
   this.pos = {
@@ -113,8 +111,28 @@ function Player(game) {
   this.speed = 1
 }
 
-Player.prototype.up = function () {
-  this.pos.y--
+Player.prototype.update = function () {
+  this.move()
+  if(this.game.controller.keys.space.down) this.destroyTile()
+}
+
+Player.prototype.move = function () {
+  if(this.game.controller.move) {
+    var nextTile = this.nextTile()
+    if(!nextTile.isWall) {
+      this.pos.x += this.speed * this.game.controller.direction.x
+      this.pos.y += this.speed * this.game.controller.direction.y
+    }
+  }
+}
+
+Player.prototype.nextTile = function () {
+  var tilePos = this.getTilePos()
+  return this.game.tiles[tilePos.y + this.game.controller.direction.y][tilePos.x + this.game.controller.direction.x]
+}
+
+Player.prototype.destroyTile = function () {
+  this.nextTile().destroy()
 }
 
 Player.prototype.setTilePos = function (tileX, tileY) {
@@ -124,7 +142,87 @@ Player.prototype.setTilePos = function (tileX, tileY) {
 
 Player.prototype.getTilePos = function () {
   return {
-    x: this.pos.x / this.offsetX,
-    y: this.pos.y / this.offsetY
+    x: Math.round(this.pos.x / this.game.offsetX),
+    y: Math.round(this.pos.y / this.game.offsetY)
   }
+}
+  
+// TILE
+function Tile(game) {
+  this.isWall = true
+  this.gold = 0
+  this.isDestructible = true
+}
+
+Tile.prototype.destroy = function () {
+  if(this.isDestructible){
+    this.isWall = false
+    this.isDestructible = false
+  }
+  return this.isWall
+}
+
+
+
+//CONTROLLER
+function Controller() {
+  this.keys = {
+    left:  {
+      keyCode: 37,
+      down: false
+    },
+    right: {
+      keyCode: 39,
+      down: false
+    },
+    up: {
+      keyCode: 38,
+      down: false
+    },
+    down: {
+      keyCode: 40,
+      down: false
+    },
+    space: {
+      keyCode: 32,
+      down: false
+    }
+  }
+
+  this.direction = {x: 0, y: 0}
+
+  var directions = {
+    left: {x: -1, y: 0},
+    right: {x: 1, y: 0},
+    up: {x: 0, y: -1},
+    down: {x: 0, y: 1},
+  }
+  this.move = false
+
+  document.addEventListener('keydown', function (e) {
+    for(keyType in this.keys) {
+      if(this.keys[keyType].keyCode === e.keyCode) {
+        e.preventDefault()
+        this.keys[keyType].down = true
+        if(directions[keyType]) {
+          this.direction = directions[keyType]
+          this.move = true
+        }
+          
+      }
+    }
+  }.bind(this))
+
+  document.addEventListener('keyup', function (e) {
+    for(keyType in this.keys) {
+      if(this.keys[keyType].keyCode === e.keyCode) {
+        e.preventDefault()
+        this.keys[keyType].down = false
+        if(directions[keyType]) {
+          this.direction = directions[keyType]
+          this.move = false
+        }
+      }
+    }
+  }.bind(this))
 }
