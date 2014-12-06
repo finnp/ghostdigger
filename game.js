@@ -10,6 +10,7 @@ window.onload = function () {
   if(typeof canvas == 'string') canvas = getElementById(canvas.id) // in case browser returns string
   var context = canvas.getContext('2d')
 
+
   // y
   // |
   // |
@@ -17,25 +18,27 @@ window.onload = function () {
   // |
   // V
   //  ----------> x
-  var player = new Player(game)
-  var controller = new Controller(player)
-  var enemy = new Enemy(game)
-
-  game.tiles[10][10].destroy()
-  game.tiles[11][10].destroy()
-  game.tiles[12][10].destroy()
-  game.tiles[13 ][10].destroy()
 
   preload(startGame)
 
   function startGame(images) {
+    game.start()
+    game.images = images
+    var player = new Player(game)
+    var controller = new Controller(player)
+
+    game.enemies = []
+
+
     player.sprite = images.player
-    enemy.sprite = images.ghost
-    console.log('startGame')
     requestAnimationFrame(draw)
     function draw(timestamp) {
+      game.collision(player)
+
       player.update()
-      enemy.update()
+      game.enemies.forEach(function (enemy) {
+        enemy.update()
+      })
 
       for(var i = 0; i < game.tilesY; i++) {
         for(var j = 0; j < game.tilesX; j++) {
@@ -67,13 +70,22 @@ window.onload = function () {
       // draw player
       player.render(context)
 
-      enemy.render(context)
+      game.enemies.forEach(function (enemy) {
+        enemy.render(context)
+      })
 
       // display
 
       context.fillStyle = 'yellow'
       context.font = 'bold 16px Arial'
       context.fillText(player.gold + ' gold', game.width - 70, game.height - 20)
+
+      if(game.gameover) {
+        context.fillStyle = 'white'
+        context.font = 'bold 100px Arial'
+        context.fillText('Game Over!', 100, game.height/2)
+      }
+
 
       // end
       requestAnimationFrame(draw)
@@ -111,31 +123,48 @@ window.onload = function () {
 
 //GAME
 function Game(width, height) {
-  var tiles = []
-  var tilesX = 50
-  var tilesY = 40
-  for(var i = 0; i < tilesY; i++) {
-    tiles[i] = []
-    for(var j = 0; j < tilesX; j++) {
-      tiles[i][j] = new Tile(tiles, j, i)
-    }
-  }
-
-
   this.width = width
   this.height = height
 
-  this.offsetX = this.width / tiles[0].length
-  this.offsetY = this.height / tiles.length
+  this.tilesX = 50
+  this.tilesY = 40
 
-  this.tilesX = tilesX
-  this.tilesY = tilesY
+  this.offsetX = this.width / this.tilesX
+  this.offsetY = this.height / this.tilesY
+}
 
-  this.tiles = tiles
+Game.prototype.start = function () {
+  this.tiles = []
+  for(var i = 0; i < this.tilesY; i++) {
+    this.tiles[i] = []
+    for(var j = 0; j < this.tilesX; j++) {
+      this.tiles[i][j] = new Tile(this.tiles, j, i)
+    }
+  }
+
+  this.tiles[10][10].destroy()
+  this.tiles[11][10].destroy()
+  this.tiles[12][10].destroy()
+  this.tiles[13][10].destroy()
 }
 
 Game.prototype.getTile = function(x, y) {
   return this.tiles[Math.floor(y / this.offsetY)][Math.floor(x / this.offsetX)]
+}
+
+Game.prototype.collision = function (player) {
+  this.enemies.forEach(function (enemy) {
+    if(enemy.pos.x === player.pos.x && enemy.pos.y === player.pos.y) {
+      this.gameover = true
+    }
+  }.bind(this))
+}
+
+Game.prototype.spawnEnemy = function(pos){
+  var enemy = new Enemy(this)
+  enemy.pos = pos
+  enemy.sprite = this.images.ghost
+  this.enemies.push(enemy)
 }
 
 // CHARACTER
@@ -164,8 +193,16 @@ Character.prototype.angle = function () {
   return angle
 }
 
+Character.prototype.getTile = function (offsetX, offsetY) {
+  return this.game.tiles[this.pos.y + offsetY][this.pos.x + offsetX]
+}
+
 Character.prototype.nextTile = function () {
-  return this.game.tiles[this.pos.y + this.direction.y][this.pos.x + this.direction.x]
+  return this.getTile(this.direction.x, this.direction.y)
+}
+
+Character.prototype.behindTile = function () {
+  return this.getTile(-this.direction.x, -this.direction.y)
 }
 
 //PLAYER
@@ -203,6 +240,9 @@ Player.prototype.move = function () {
 Player.prototype.mine = function () {
   var next = this.nextTile()
   this.gold += next.gold
+  if (next.hasEnemy){
+    this.game.spawnEnemy(Object.create(next.pos))
+  }
   next.destroy()
 }
 
@@ -210,6 +250,7 @@ Player.prototype.mine = function () {
 
 function Enemy(game) {
   this.game = game
+  this.sprite = this.game.images.ghost
   Character.call(game)
   this.pos = {
     x: 10,
@@ -229,7 +270,7 @@ function Enemy(game) {
 
   this.direction = this.directions[0]
 
-  this.timeout = 0
+  this.timeout = 100
 
 }
 
@@ -239,12 +280,21 @@ Enemy.prototype.update = function () {
   this.timeout--
   if(this.timeout < 0) {
     this.timeout = 10
-    var next = this.nextTile()
-    if(next.isWall) {
-      this.direction = this.directions[Math.floor(Math.random()*4)]
-    } else {
-      this.move()
-    }
+    var current = this.getTile(0, 0)
+    var behind = this.behindTile()
+    var possibleTiles = []
+    current.getDirectNeighbours().forEach(function (neighbour) {
+      if(!neighbour.isWall && (neighbour.x !== behind.x || neighbour.y !== behind.y)) {
+        possibleTiles.push(neighbour)
+      }
+    })
+    var nextTile
+    if(possibleTiles.length === 0) nextTile = behind
+    else nextTile = possibleTiles[Math.floor(Math.random()*possibleTiles.length)]
+    this.direction.x = nextTile.x - this.pos.x
+    this.direction.y = nextTile.y - this.pos.y
+
+    this.move()
   }
 
 }
@@ -254,18 +304,15 @@ Enemy.prototype.move = function () {
   this.pos.y += this.direction.y
 }
 
-Enemy.prototype.nextTile = function () {
-  //TODO: move to parent class "Character"?
-  return this.game.tiles[this.pos.y + this.direction.y][this.pos.x + this.direction.x]
-}
-
 
 // TILE
 function Tile(tiles, x, y) {
   this.tiles = tiles
   this.x = x
   this.y = y
+  this.pos = {x: x, y: y}
   this.isWall = true
+  this.hasEnemy = Math.random() < 0.05
   this.gold = Math.random() < 0.05
   this.isDestructible = true
   this.discovered = false
@@ -294,6 +341,14 @@ Tile.prototype.getNeighbours = function () {
     this.tiles[this.y - 1][this.x],
     this.tiles[this.y - 1][this.x + 1],
     this.tiles[this.y - 1][this.x - 1]
+  ]
+}
+Tile.prototype.getDirectNeighbours = function () {
+  return [
+    this.tiles[this.y + 1][this.x],
+    this.tiles[this.y][this.x + 1],
+    this.tiles[this.y][this.x - 1],
+    this.tiles[this.y - 1][this.x]
   ]
 }
 
