@@ -2,7 +2,7 @@ window.onload = function () {
   var canvas = document.createElement('canvas') // <canvas id="game"></canvas>
   canvas.id = 'game'
 
-  canvas.width = 640
+  canvas.width = 800
   canvas.height = 640
 
   var game = new Game(canvas.width, canvas.height)
@@ -20,11 +20,10 @@ window.onload = function () {
   var player = new Player(game)
   var controller = new Controller(player)
 
-  player.setTilePos(10, 10)
-  game.tiles[10][10].isWall = false
-  game.tiles[11][10].isWall = false
-  game.tiles[12][10].isWall = false
-  game.tiles[13 ][10].isWall = false
+  game.tiles[10][10].destroy()
+  game.tiles[11][10].destroy()
+  game.tiles[12][10].destroy()
+  game.tiles[13 ][10].destroy()
 
   preload(startGame)
 
@@ -35,7 +34,22 @@ window.onload = function () {
       player.update()
       for(var i = 0; i < game.tilesY; i++) {
         for(var j = 0; j < game.tilesX; j++) {
-            var tileSprite =  game.tiles[i][j].isWall ? images.wall : images.floor
+            var tileSprite
+            var tile = game.tiles[i][j]
+            if(tile.isWall) {
+              if(tile.discovered) {
+                if(tile.gold > 0) {
+                  tileSprite = images.gold
+                } else {
+                  tileSprite = images.wall
+                }
+              } else {
+                tileSprite = images.fog
+              }
+            } else {
+              tileSprite = images.floor
+            }
+
             context.drawImage(tileSprite,
               Math.floor(game.offsetX * j),
               Math.floor(game.offsetY * i),
@@ -47,14 +61,23 @@ window.onload = function () {
 
       // draw player
       context.save()
-      context.translate(player.pos.x, player.pos.y)
+      context.translate(player.pos.x * game.offsetX, player.pos.y * game.offsetY)
       context.translate(game.offsetX / 2, game.offsetY / 2)
       context.rotate(player.angle())
       context.drawImage(images.player,
         -game.offsetX / 2, -game.offsetY / 2, game.offsetX, game.offsetY
       )
       context.restore()
+
+      // display
+
+      context.fillStyle = 'yellow'
+      context.font = 'bold 16px Arial'
+      context.fillText(player.gold + ' gold', game.width - 70, game.height - 20)
+
+      // end
       requestAnimationFrame(draw)
+
     }
   }
 
@@ -62,7 +85,9 @@ window.onload = function () {
     var images =  {
      floor: 'img/floor.png',
      wall: 'img/wall.png',
-     player: 'img/player.png'
+     player: 'img/player.png',
+     fog: 'img/fog.png',
+     gold: 'img/gold.png'
     }
     var loadedImages = {}
     var n = Object.keys(images).length
@@ -86,12 +111,12 @@ window.onload = function () {
 //GAME
 function Game(width, height) {
   var tiles = []
-  var tilesX = 40
+  var tilesX = 50
   var tilesY = 40
   for(var i = 0; i < tilesY; i++) {
     tiles[i] = []
     for(var j = 0; j < tilesX; j++) {
-      tiles[i][j] = new Tile()
+      tiles[i][j] = new Tile(tiles, j, i)
     }
   }
 
@@ -114,6 +139,7 @@ Game.prototype.getTile = function(x, y) {
 
 //PLAYER
 function Player(game) {
+  this.gold = 0
   this.game = game
   this.pos = {
     x: 10,
@@ -130,61 +156,17 @@ function Player(game) {
 
 Player.prototype.update = function () {
   if(this.moving) this.move()
-  if(this.mine) this.destroyTile()
 }
 
 Player.prototype.move = function () {
-  var corners = this.getCorners()
-  var leftShoulder, rightShoulder
-  if(this.direction.x === 1){ // if right
-    leftShoulder = corners.topRight
-    rightShoulder = corners.bottomRight
-  }
-  else if(this.direction.x === -1){ // if left
-    leftShoulder = corners.bottomLeft
-    rightShoulder = corners.topLeft
-  }
-  else if(this.direction.y === 1){ // if down
-    leftShoulder = corners.bottomRight
-    rightShoulder = corners.bottomLeft
-  }
-  else if(this.direction.y === -1){ // if up
-    leftShoulder = corners.topLeft
-    rightShoulder = corners.topRight
-  }
-
-  var leftTile = this.game.getTile(
-    leftShoulder.x + this.direction.x,
-    leftShoulder.y + this.direction.y
-  )
-  var rightTile = this.game.getTile(
-    rightShoulder.x + this.direction.x,
-    rightShoulder.y + this.direction.y
-  )
-
-
-  if(!(leftTile.isWall || rightTile.isWall)) {
+  this.moving = false
+  if(!this.nextTile().isWall) {
     this.pos.x += this.direction.x
     this.pos.y += this.direction.y
   }
 }
 
-Player.prototype.getCorners = function () {
-  return {
-    topLeft: {x: this.pos.x, y: this.pos.y},
-    topRight: {x: this.pos.x + this.game.offsetX -1, y: this.pos.y},
-    bottomLeft: {x: this.pos.x, y: this.pos.y + this.game.offsetY-1},
-    bottomRight: {x: this.pos.x + this.game.offsetX-1, y: this.pos.y + this.game.offsetY-1}
-  }
-}
 
-
-Player.prototype.getCenter = function () {
-  return {
-    x: this.pos.x + this.width / 2,
-    y: this.pos.y + this.height / 2
-  }
-}
 
 Player.prototype.angle = function () {
   var angle = 0
@@ -196,42 +178,54 @@ Player.prototype.angle = function () {
 }
 
 Player.prototype.nextTile = function () {
-  var tilePos = this.getTilePos()
-  return this.game.tiles[tilePos.y + this.direction.y][tilePos.x + this.direction.x]
+  return this.game.tiles[this.pos.y + this.direction.y][this.pos.x + this.direction.x]
 }
 
-Player.prototype.destroyTile = function () {
-  this.nextTile().destroy()
+Player.prototype.mine = function () {
+  var next = this.nextTile()
+  this.gold += next.gold
+  next.destroy()
 }
 
-Player.prototype.setTilePos = function (tileX, tileY) {
-  this.pos.x = tileX*this.game.offsetX
-  this.pos.y = tileY*this.game.offsetY
-}
 
-Player.prototype.getTilePos = function () {
-  var center = this.getCenter()
-  return {
-    x: Math.floor(center.x / this.game.offsetX),
-    y: Math.floor(center.y / this.game.offsetY)
-  }
-}
+
 
 // TILE
-function Tile(game) {
+function Tile(tiles, x, y) {
+  this.tiles = tiles
+  this.x = x
+  this.y = y
   this.isWall = true
-  this.gold = 0
+  this.gold = Math.random() < 0.05
   this.isDestructible = true
+  this.discovered = false
 }
 
 Tile.prototype.destroy = function () {
+
   if(this.isDestructible){
     this.isWall = false
     this.isDestructible = false
+
+    this.getNeighbours().forEach(function (neighbour) {
+      neighbour.discovered = true
+    })
   }
   return this.isWall
 }
 
+Tile.prototype.getNeighbours = function () {
+  return [
+    this.tiles[this.y + 1][this.x],
+    this.tiles[this.y + 1][this.x + 1],
+    this.tiles[this.y + 1][this.x - 1],
+    this.tiles[this.y][this.x + 1],
+    this.tiles[this.y][this.x - 1],
+    this.tiles[this.y - 1][this.x],
+    this.tiles[this.y - 1][this.x + 1],
+    this.tiles[this.y - 1][this.x - 1]
+  ]
+}
 
 
 //CONTROLLER
@@ -252,7 +246,7 @@ function Controller(player) {
       this.player.moving = true
     }
     else if(e.keyCode == 32) {
-      this.player.mine = true
+      this.player.mine()
     }
   }.bind(this))
 
@@ -260,9 +254,6 @@ function Controller(player) {
     e.preventDefault()
     if(e.keyCode in directions) {
       this.player.moving = false
-    }
-    else if(e.keyCode == 32) {
-      this.player.mine = false
     }
   }.bind(this))
 }
