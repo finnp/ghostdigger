@@ -6,8 +6,6 @@ window.onload = function () {
   canvas.height = 640
 
   var game = new Game(canvas.width, canvas.height)
-  game.controller = new Controller()
-
   document.body.appendChild(canvas)
   if(typeof canvas == 'string') canvas = getElementById(canvas.id) // in case browser returns string
   var context = canvas.getContext('2d')
@@ -20,6 +18,8 @@ window.onload = function () {
   // V
   //  ----------> x
   var player = new Player(game)
+  var controller = new Controller(player)
+
   player.setTilePos(10, 10)
   game.tiles[10][10].isWall = false
   game.tiles[11][10].isWall = false
@@ -44,9 +44,16 @@ window.onload = function () {
             )
          }
       }
+
+      // draw player
+      context.save()
+      context.translate(player.pos.x, player.pos.y)
+      context.translate(game.offsetX / 2, game.offsetY / 2)
+      context.rotate(player.angle())
       context.drawImage(images.player,
-        player.pos.x, player.pos.y, game.offsetX, game.offsetY
+        -game.offsetX / 2, -game.offsetY / 2, game.offsetX, game.offsetY
       )
+      context.restore()
       requestAnimationFrame(draw)
     }
   }
@@ -101,6 +108,10 @@ function Game(width, height) {
   this.tiles = tiles
 }
 
+Game.prototype.getTile = function(x, y) {
+  return this.tiles[Math.floor(y / this.offsetY)][Math.floor(x / this.offsetX)]
+}
+
 //PLAYER
 function Player(game) {
   this.game = game
@@ -108,27 +119,85 @@ function Player(game) {
     x: 10,
     y: 10
   }
-  this.speed = 1
+
+  this.moving = false
+
+  this.width = this.game.offsetX
+  this.height = this.game.offsetY
+
+  this.direction = {x: 1, y: 0}
 }
 
 Player.prototype.update = function () {
-  this.move()
-  if(this.game.controller.keys.space.down) this.destroyTile()
+  if(this.moving) this.move()
+  if(this.mine) this.destroyTile()
 }
 
 Player.prototype.move = function () {
-  if(this.game.controller.move) {
-    var nextTile = this.nextTile()
-    if(!nextTile.isWall) {
-      this.pos.x += this.speed * this.game.controller.direction.x
-      this.pos.y += this.speed * this.game.controller.direction.y
-    }
+  var corners = this.getCorners()
+  var leftShoulder, rightShoulder
+  if(this.direction.x === 1){ // if right
+    leftShoulder = corners.topRight
+    rightShoulder = corners.bottomRight
   }
+  else if(this.direction.x === -1){ // if left
+    leftShoulder = corners.bottomLeft
+    rightShoulder = corners.topLeft
+  }
+  else if(this.direction.y === 1){ // if down
+    leftShoulder = corners.bottomRight
+    rightShoulder = corners.bottomLeft
+  }
+  else if(this.direction.y === -1){ // if up
+    leftShoulder = corners.topLeft
+    rightShoulder = corners.topRight
+  }
+
+  var leftTile = this.game.getTile(
+    leftShoulder.x + this.direction.x,
+    leftShoulder.y + this.direction.y
+  )
+  var rightTile = this.game.getTile(
+    rightShoulder.x + this.direction.x,
+    rightShoulder.y + this.direction.y
+  )
+
+
+  if(!(leftTile.isWall || rightTile.isWall)) {
+    this.pos.x += this.direction.x
+    this.pos.y += this.direction.y
+  }
+}
+
+Player.prototype.getCorners = function () {
+  return {
+    topLeft: {x: this.pos.x, y: this.pos.y},
+    topRight: {x: this.pos.x + this.game.offsetX -1, y: this.pos.y},
+    bottomLeft: {x: this.pos.x, y: this.pos.y + this.game.offsetY-1},
+    bottomRight: {x: this.pos.x + this.game.offsetX-1, y: this.pos.y + this.game.offsetY-1}
+  }
+}
+
+
+Player.prototype.getCenter = function () {
+  return {
+    x: this.pos.x + this.width / 2,
+    y: this.pos.y + this.height / 2
+  }
+}
+
+Player.prototype.angle = function () {
+  var angle = 0
+  if(this.direction.x === 1) angle = Math.PI / 2
+  else if(this.direction.x === -1) angle = 3 * Math.PI / 2
+  else if(this.direction.y === 1) angle = 2 * Math.PI / 2
+  // else if(this.direction.y === -1) angle = 0
+  return angle
 }
 
 Player.prototype.nextTile = function () {
   var tilePos = this.getTilePos()
-  return this.game.tiles[tilePos.y + this.game.controller.direction.y][tilePos.x + this.game.controller.direction.x]
+  return this.game.tiles[tilePos.y + this.direction.y][tilePos.x + this.direction.x]
 }
 
 Player.prototype.destroyTile = function () {
@@ -141,12 +210,13 @@ Player.prototype.setTilePos = function (tileX, tileY) {
 }
 
 Player.prototype.getTilePos = function () {
+  var center = this.getCenter()
   return {
-    x: Math.round(this.pos.x / this.game.offsetX),
-    y: Math.round(this.pos.y / this.game.offsetY)
+    x: Math.floor(center.x / this.game.offsetX),
+    y: Math.floor(center.y / this.game.offsetY)
   }
 }
-  
+
 // TILE
 function Tile(game) {
   this.isWall = true
@@ -165,64 +235,34 @@ Tile.prototype.destroy = function () {
 
 
 //CONTROLLER
-function Controller() {
-  this.keys = {
-    left:  {
-      keyCode: 37,
-      down: false
-    },
-    right: {
-      keyCode: 39,
-      down: false
-    },
-    up: {
-      keyCode: 38,
-      down: false
-    },
-    down: {
-      keyCode: 40,
-      down: false
-    },
-    space: {
-      keyCode: 32,
-      down: false
-    }
-  }
-
-  this.direction = {x: 0, y: 0}
-
+function Controller(player) {
   var directions = {
-    left: {x: -1, y: 0},
-    right: {x: 1, y: 0},
-    up: {x: 0, y: -1},
-    down: {x: 0, y: 1},
+    37: {x: -1, y: 0},
+    39: {x: 1, y: 0},
+    38: {x: 0, y: -1},
+    40: {x: 0, y: 1},
   }
-  this.move = false
+  this. player = player
+  this.player.moving = false
 
   document.addEventListener('keydown', function (e) {
-    for(keyType in this.keys) {
-      if(this.keys[keyType].keyCode === e.keyCode) {
-        e.preventDefault()
-        this.keys[keyType].down = true
-        if(directions[keyType]) {
-          this.direction = directions[keyType]
-          this.move = true
-        }
-          
-      }
+    e.preventDefault()
+    if(e.keyCode in directions) {
+      this.player.direction = directions[e.keyCode]
+      this.player.moving = true
+    }
+    else if(e.keyCode == 32) {
+      this.player.mine = true
     }
   }.bind(this))
 
   document.addEventListener('keyup', function (e) {
-    for(keyType in this.keys) {
-      if(this.keys[keyType].keyCode === e.keyCode) {
-        e.preventDefault()
-        this.keys[keyType].down = false
-        if(directions[keyType]) {
-          this.direction = directions[keyType]
-          this.move = false
-        }
-      }
+    e.preventDefault()
+    if(e.keyCode in directions) {
+      this.player.moving = false
+    }
+    else if(e.keyCode == 32) {
+      this.player.mine = false
     }
   }.bind(this))
 }
