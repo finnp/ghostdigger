@@ -8,121 +8,12 @@ window.onload = function () {
   var game = new Game(canvas.width, canvas.height)
   document.body.appendChild(canvas)
   if(typeof canvas == 'string') canvas = getElementById(canvas.id) // in case browser returns string
-  var context = canvas.getContext('2d')
+  game.context = canvas.getContext('2d')
 
 
-  // y
-  // |
-  // |
-  // |
-  // |
-  // V
-  //  ----------> x
-
-  preload(startGame)
-
-  function startGame(images) {
+  game.loadImages(function () {
     game.start()
-    game.images = images
-    var player = new Player(game)
-    var controller = new Controller(player)
-
-    game.enemies = []
-
-
-    player.sprite = images.player
-    requestAnimationFrame(draw)
-
-    function draw(timestamp) {
-      game.timestamp = timestamp
-      game.collision(player)
-      controller.update(timestamp)
-      player.update(timestamp)
-      game.enemies.forEach(function (enemy) {
-        enemy.update(timestamp)
-      })
-
-      for(var i = 0; i < game.tilesY; i++) {
-        for(var j = 0; j < game.tilesX; j++) {
-            var tileSprite
-            var tile = game.tiles[i][j]
-            if(tile.isWall) {
-              if(tile.discovered) {
-                if(!tile.isDestructible) {
-                  tileSprite = images.stone
-                } else if(tile.gold > 0) {
-                  tileSprite = images.gold
-                } else {
-                  tileSprite = images.wall
-                }
-              } else {
-                tileSprite = images.fog
-              }
-            } else {
-              tileSprite = images.floor
-            }
-
-            context.drawImage(tileSprite,
-              Math.floor(game.offsetX * j),
-              Math.floor(game.offsetY * i),
-              Math.floor(game.offsetX),
-              Math.floor(game.offsetY)
-            )
-         }
-      }
-
-      // draw player
-      player.render(context)
-
-      game.enemies.forEach(function (enemy) {
-        enemy.render(context)
-      })
-
-      // display
-
-      context.fillStyle = 'yellow'
-      context.font = 'bold 16px Arial'
-      context.fillText(player.gold + ' gold', game.width - 70, game.height - 20)
-      context.fillText(game.openTiles + ' open', game.width - 70, game.height - 60)
-
-      if(game.gameover) {
-        context.fillStyle = 'white'
-        context.font = 'bold 100px Arial'
-        context.fillText('Game Over!', 100, game.height/2)
-      }
-
-
-      // end
-      requestAnimationFrame(draw)
-
-    }
-  }
-
-  function preload(cb) {
-    var images =  {
-     floor: 'img/floor.png',
-     wall: 'img/wall.png',
-     player: 'img/player.png',
-     fog: 'img/fog.png',
-     gold: 'img/gold.png',
-     ghost: 'img/ghost.png',
-     stone: 'img/stone.png'
-    }
-    var loadedImages = {}
-    var n = Object.keys(images).length
-
-    for(imageName in images) {
-      var img = new Image()
-      img.onload = imageLoaded
-      img.src = images[imageName]
-      loadedImages[imageName] = img
-    }
-
-    function imageLoaded() {
-      n--
-      if(n === 0) cb(loadedImages)
-    }
-  }
+  })
 }
 
 //------CLASSES------//
@@ -137,11 +28,37 @@ function Game(width, height) {
 
   this.offsetX = this.width / this.tilesX
   this.offsetY = this.height / this.tilesY
+}
+
+Game.prototype.loadImages = function (cb) {
+  var toLoad =  {
+    floor: 'img/floor.png',
+    wall: 'img/wall.png',
+    player: 'img/player.png',
+    fog: 'img/fog.png',
+    gold: 'img/gold.png',
+    ghost: 'img/ghost.png',
+    stone: 'img/stone.png'
+  }
+  this.images = {}
+  var n = Object.keys(toLoad).length
   
-  this.openTiles = 0
+  for(imageName in toLoad) {
+    var img = new Image()
+    img.onload = imageLoaded
+    img.src = toLoad[imageName]
+    this.images[imageName] = img
+  }
+  
+  function imageLoaded() {
+    n--
+    if(n === 0) cb()
+  }
 }
 
 Game.prototype.start = function () {
+  //tiles
+  this.openTiles = 0  
   this.tiles = []
   for(var i = 0; i < this.tilesY; i++) {
     this.tiles[i] = []
@@ -152,7 +69,91 @@ Game.prototype.start = function () {
         newTile.isDestructible = false
     }
   }
+  
+  this.player = new Player(this)
+  this.player.sprite = this.images.player
+  
+  this.controller = new Controller(this.player)
+  this.enemies = []
+  
+  if(this.req) cancelAnimationFrame(this.req)
+  this.req = requestAnimationFrame(this.loop.bind(this))
 
+}
+
+Game.prototype.loop = function (timestamp) {
+  // GameLoop
+  this.timestamp = timestamp
+  
+  this.update(timestamp)
+  this.draw(timestamp)
+  
+  // end
+  this.req = requestAnimationFrame(this.loop.bind(this))
+}
+
+Game.prototype.update = function (timestamp) {
+  this.collision(this.player)
+  this.controller.update(timestamp)
+  this.player.update(timestamp)
+  this.enemies.forEach(function (enemy) {
+    enemy.update(timestamp)
+  })
+}
+
+Game.prototype.draw = function(timestamp) {
+  var images = this.images
+  for(var i = 0; i < this.tilesY; i++) {
+    for(var j = 0; j < this.tilesX; j++) {
+      var tileSprite
+      var tile = this.tiles[i][j]
+      if(tile.isWall) {
+        if(tile.discovered) {
+          if(!tile.isDestructible) {
+            tileSprite = images.stone
+          } else if(tile.gold > 0) {
+            tileSprite = images.gold
+          } else {
+            tileSprite = images.wall
+          }
+        } else {
+          tileSprite = images.fog
+        }
+      } else {
+        tileSprite = images.floor
+      }
+      
+      this.context.drawImage(tileSprite,
+        Math.floor(this.offsetX * j),
+        Math.floor(this.offsetY * i),
+        Math.floor(this.offsetX),
+        Math.floor(this.offsetY)
+      )
+    }
+  }
+  
+  var context = this.context
+  
+  // draw player
+  this.player.render(context)
+  
+  this.enemies.forEach(function (enemy) {
+    enemy.render(context)
+  })
+  
+  // display
+  
+  context.fillStyle = 'yellow'
+  context.font = 'bold 16px Arial'
+  context.fillText(this.player.gold + ' gold', this.width - 70, this.height - 20)
+  context.fillText(this.openTiles + ' open', this.width - 70, this.height - 60)
+  
+  if(this.gameover) {
+    context.fillStyle = 'white'
+    context.font = 'bold 100px Arial'
+    context.fillText('Game Over!', 100, this.height/2)
+  }
+  
 }
 
 Game.prototype.getTile = function(tileX, tileY) {
@@ -223,7 +224,7 @@ Character.prototype.behindTile = function () {
 //PLAYER
 function Player(game) {
   Character.call(game)
-  this.timeout = 0 
+  this.timeout = 0
   this.stepTime = 100 // ms
   this.gold = 0
   this.game = game
@@ -385,7 +386,7 @@ function Controller(player) {
   this. player = player
 
   this.keysPressed = {}
-  
+
   this.doMine = false
 
   document.addEventListener('keydown', function (e) {
