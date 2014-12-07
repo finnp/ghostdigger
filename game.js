@@ -46,7 +46,9 @@ window.onload = function () {
             var tile = game.tiles[i][j]
             if(tile.isWall) {
               if(tile.discovered) {
-                if(tile.gold > 0) {
+                if(!tile.isDestructible) {
+                  tileSprite = images.stone
+                } else if(tile.gold > 0) {
                   tileSprite = images.gold
                 } else {
                   tileSprite = images.wall
@@ -100,7 +102,8 @@ window.onload = function () {
      player: 'img/player.png',
      fog: 'img/fog.png',
      gold: 'img/gold.png',
-     ghost: 'img/ghost.png'
+     ghost: 'img/ghost.png',
+     stone: 'img/stone.png'
     }
     var loadedImages = {}
     var n = Object.keys(images).length
@@ -138,7 +141,10 @@ Game.prototype.start = function () {
   for(var i = 0; i < this.tilesY; i++) {
     this.tiles[i] = []
     for(var j = 0; j < this.tilesX; j++) {
-      this.tiles[i][j] = new Tile(this.tiles, j, i)
+      var newTile = new Tile(this, j, i)
+      this.tiles[i][j] = newTile
+      if(i === 0 || j === 0 || i === (this.tilesY - 1) || j === (this.tilesX - 1))
+        newTile.isDestructible = false
     }
   }
 
@@ -148,7 +154,7 @@ Game.prototype.start = function () {
   this.tiles[13][10].destroy()
 }
 
-Game.prototype.getTile = function(x, y) {
+Game.prototype.getTile = function(tileX, tileY) {
   return this.tiles[Math.floor(y / this.offsetY)][Math.floor(x / this.offsetX)]
 }
 
@@ -239,11 +245,14 @@ Player.prototype.move = function () {
 
 Player.prototype.mine = function () {
   var next = this.nextTile()
-  this.gold += next.gold
-  if (next.hasEnemy){
-    this.game.spawnEnemy(Object.create(next.pos))
+  if (next.isDestructible){
+    this.gold += next.gold
+    if (next.hasEnemy){
+      this.game.spawnEnemy(Object.create(next.pos))
+    }
+    next.destroy()
   }
-  next.destroy()
+
 }
 
 // ENEMY
@@ -306,28 +315,27 @@ Enemy.prototype.move = function () {
 
 
 // TILE
-function Tile(tiles, x, y) {
-  this.tiles = tiles
+function Tile(game, x, y) {
+  this.game = game
+  this.tiles = game.tiles
   this.x = x
   this.y = y
   this.pos = {x: x, y: y}
   this.isWall = true
   this.hasEnemy = Math.random() < 0.05
   this.gold = Math.random() < 0.05
-  this.isDestructible = true
+  this.isDestructible = Math.random() < 0.95
   this.discovered = false
 }
 
 Tile.prototype.destroy = function () {
 
-  if(this.isDestructible){
-    this.isWall = false
-    this.isDestructible = false
+  this.isWall = false
+  this.isDestructible = false
 
-    this.getNeighbours().forEach(function (neighbour) {
-      neighbour.discovered = true
-    })
-  }
+  this.getNeighbours().forEach(function (neighbour) {
+    neighbour.discovered = true
+  })
   return this.isWall
 }
 
