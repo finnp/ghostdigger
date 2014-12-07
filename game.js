@@ -148,10 +148,6 @@ Game.prototype.start = function () {
     }
   }
 
-  this.tiles[10][10].destroy()
-  this.tiles[11][10].destroy()
-  this.tiles[12][10].destroy()
-  this.tiles[13][10].destroy()
 }
 
 Game.prototype.getTile = function(tileX, tileY) {
@@ -217,10 +213,10 @@ function Player(game) {
   this.gold = 0
   this.game = game
   this.pos = {
-    x: 10,
-    y: 10
+    x: 1 + Math.floor(Math.random()*(this.game.tilesX-2)),
+    y: 1 + Math.floor(Math.random()*(this.game.tilesY-2))
   }
-
+  this.game.tiles[this.pos.y][this.pos.x].destroy()
   this.moving = false
 
   this.width = this.game.offsetX
@@ -237,7 +233,12 @@ Player.prototype.update = function () {
 
 Player.prototype.move = function () {
   this.moving = false
-  if(!this.nextTile().isWall) {
+  var isEnemy = this.game.enemies.some(function (enemy) {
+    if(enemy.active) return false
+    return enemy.pos.x === this.pos.x + this.direction.x &&
+      enemy.pos.y === this.pos.y + this.direction.y
+  }.bind(this))
+  if(!this.nextTile().isWall && !isEnemy) {
     this.pos.x += this.direction.x
     this.pos.y += this.direction.y
   }
@@ -280,6 +281,7 @@ function Enemy(game) {
   this.direction = this.directions[0]
 
   this.timeout = 100
+  this.active = false
 
 }
 
@@ -288,6 +290,7 @@ Enemy.prototype = Object.create(Character.prototype)
 Enemy.prototype.update = function () {
   this.timeout--
   if(this.timeout < 0) {
+    if (!this.active) this.active = true
     this.timeout = 10
     var current = this.getTile(0, 0)
     var behind = this.behindTile()
