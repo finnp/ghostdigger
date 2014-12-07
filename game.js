@@ -32,13 +32,14 @@ window.onload = function () {
 
     player.sprite = images.player
     requestAnimationFrame(draw)
-    var fps = 60
+
     function draw(timestamp) {
+      game.timestamp = timestamp
       game.collision(player)
-      controller.update()
-      player.update()
+      controller.update(timestamp)
+      player.update(timestamp)
       game.enemies.forEach(function (enemy) {
-        enemy.update()
+        enemy.update(timestamp)
       })
 
       for(var i = 0; i < game.tilesY; i++) {
@@ -82,6 +83,7 @@ window.onload = function () {
       context.fillStyle = 'yellow'
       context.font = 'bold 16px Arial'
       context.fillText(player.gold + ' gold', game.width - 70, game.height - 20)
+      context.fillText(game.openTiles + ' open', game.width - 70, game.height - 60)
 
       if(game.gameover) {
         context.fillStyle = 'white'
@@ -91,10 +93,7 @@ window.onload = function () {
 
 
       // end
-      setTimeout(function() {
-        requestAnimationFrame(draw)
-      }, 1000/fps)
-
+      requestAnimationFrame(draw)
 
     }
   }
@@ -138,6 +137,8 @@ function Game(width, height) {
 
   this.offsetX = this.width / this.tilesX
   this.offsetY = this.height / this.tilesY
+  
+  this.openTiles = 0
 }
 
 Game.prototype.start = function () {
@@ -171,6 +172,14 @@ Game.prototype.spawnEnemy = function(pos){
   enemy.pos = pos
   enemy.sprite = this.images.ghost
   this.enemies.push(enemy)
+}
+
+Game.prototype.randomSpawnEnemy = function (pos) {
+  var size = this.tilesX * this.tilesY
+  var ghostProbability = (this.openTiles / (size*4))
+  if(Math.random() < ghostProbability) {
+    this.spawnEnemy(pos)
+  }
 }
 
 // CHARACTER
@@ -214,6 +223,8 @@ Character.prototype.behindTile = function () {
 //PLAYER
 function Player(game) {
   Character.call(game)
+  this.timeout = 0 
+  this.stepTime = 100 // ms
   this.gold = 0
   this.game = game
   this.pos = {
@@ -221,7 +232,6 @@ function Player(game) {
     y: 1 + Math.floor(Math.random()*(this.game.tilesY-2))
   }
   this.game.tiles[this.pos.y][this.pos.x].destroy()
-  this.moving = false
 
   this.width = this.game.offsetX
   this.height = this.game.offsetY
@@ -232,7 +242,7 @@ function Player(game) {
 Player.prototype = Object.create(Character.prototype)
 
 Player.prototype.update = function () {
-  if(this.moving) this.move()
+ // nope
 }
 
 Player.prototype.move = function () {
@@ -251,9 +261,7 @@ Player.prototype.mine = function () {
   var next = this.nextTile()
   if (next.isDestructible){
     this.gold += next.gold
-    if (next.hasEnemy){
-      this.game.spawnEnemy(Object.create(next.pos))
-    }
+    this.game.randomSpawnEnemy(Object.create(next.pos))
     next.destroy()
   }
 
@@ -282,19 +290,18 @@ function Enemy(game) {
   this.height = game.offsetY
 
   this.direction = this.directions[0]
-
-  this.timeout = 100
+  this.timeout = this.game.timestamp + 3000
+  this.stepTime = 100
   this.active = false
 
 }
 
 Enemy.prototype = Object.create(Character.prototype)
 
-Enemy.prototype.update = function () {
-  this.timeout--
-  if(this.timeout < 0) {
+Enemy.prototype.update = function (timestamp) {
+  if(timestamp > this.timeout) {
     if (!this.active) this.active = true
-    this.timeout = 10
+    this.timeout = timestamp + this.stepTime
     var current = this.getTile(0, 0)
     var behind = this.behindTile()
     var possibleTiles = []
@@ -328,7 +335,6 @@ function Tile(game, x, y) {
   this.y = y
   this.pos = {x: x, y: y}
   this.isWall = true
-  this.hasEnemy = Math.random() < 0.05
   this.gold = Math.random() < 0.05
   this.isDestructible = Math.random() < 0.95
   this.discovered = false
@@ -336,6 +342,7 @@ function Tile(game, x, y) {
 
 Tile.prototype.destroy = function () {
 
+  this.game.openTiles += 1
   this.isWall = false
   this.isDestructible = false
 
@@ -376,9 +383,10 @@ function Controller(player) {
     40: {x: 0, y: 1},
   }
   this. player = player
-  this.player.moving = false
 
   this.keysPressed = {}
+  
+  this.doMine = false
 
   document.addEventListener('keydown', function (e) {
     e.preventDefault()
@@ -386,9 +394,8 @@ function Controller(player) {
     if(e.keyCode in directions) {
       this.player.direction = directions[e.keyCode]
     }
-    else if(e.keyCode == 32) {
-      this.player.mine()
-    }
+    if(this.isSpace()) this.doMine = true
+
   }.bind(this))
 
   document.addEventListener('keyup', function (e) {
@@ -397,8 +404,19 @@ function Controller(player) {
   }.bind(this))
 }
 
-Controller.prototype.update = function () {
-  this.player.moving = this.areArrowsPressed()
+Controller.prototype.update = function (timestamp) {
+  if(timestamp > this.player.timeout) {
+    if(this.doMine) {
+      this.doMine = false
+      this.player.mine()
+    }
+    if(this.areArrowsPressed()) this.player.move()
+    this.player.timeout = timestamp + this.player.stepTime
+  }
+}
+
+Controller.prototype.isSpace = function () {
+  return this.keysPressed[32]
 }
 
 Controller.prototype.areArrowsPressed = function () {
