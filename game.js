@@ -42,14 +42,14 @@ Game.prototype.loadImages = function (cb) {
   }
   this.images = {}
   var n = Object.keys(toLoad).length
-  
+
   for(imageName in toLoad) {
     var img = new Image()
     img.onload = imageLoaded
     img.src = toLoad[imageName]
     this.images[imageName] = img
   }
-  
+
   function imageLoaded() {
     n--
     if(n === 0) cb()
@@ -57,8 +57,10 @@ Game.prototype.loadImages = function (cb) {
 }
 
 Game.prototype.start = function () {
+  console.log('Start game')
+  this.paused = false
   //tiles
-  this.openTiles = 0  
+  this.openTiles = 0
   this.tiles = []
   for(var i = 0; i < this.tilesY; i++) {
     this.tiles[i] = []
@@ -69,13 +71,13 @@ Game.prototype.start = function () {
         newTile.isDestructible = false
     }
   }
-  
+
   this.player = new Player(this)
   this.player.sprite = this.images.player
-  
+
   this.controller = new Controller(this.player)
   this.enemies = []
-  
+
   if(this.req) cancelAnimationFrame(this.req)
   this.req = requestAnimationFrame(this.loop.bind(this))
 
@@ -84,10 +86,10 @@ Game.prototype.start = function () {
 Game.prototype.loop = function (timestamp) {
   // GameLoop
   this.timestamp = timestamp
-  
-  this.update(timestamp)
+
+  if(!this.paused) this.update(timestamp)
   this.draw(timestamp)
-  
+
   // end
   this.req = requestAnimationFrame(this.loop.bind(this))
 }
@@ -122,7 +124,7 @@ Game.prototype.draw = function(timestamp) {
       } else {
         tileSprite = images.floor
       }
-      
+
       this.context.drawImage(tileSprite,
         Math.floor(this.offsetX * j),
         Math.floor(this.offsetY * i),
@@ -131,29 +133,29 @@ Game.prototype.draw = function(timestamp) {
       )
     }
   }
-  
+
   var context = this.context
-  
+
   // draw player
   this.player.render(context)
-  
+
   this.enemies.forEach(function (enemy) {
     enemy.render(context)
   })
-  
+
   // display
-  
+
   context.fillStyle = 'yellow'
   context.font = 'bold 16px Arial'
   context.fillText(this.player.gold + ' gold', this.width - 70, this.height - 20)
   context.fillText(this.openTiles + ' open', this.width - 70, this.height - 60)
-  
+
   if(this.gameover) {
     context.fillStyle = 'white'
     context.font = 'bold 100px Arial'
     context.fillText('Game Over!', 100, this.height/2)
   }
-  
+
 }
 
 Game.prototype.getTile = function(tileX, tileY) {
@@ -163,7 +165,12 @@ Game.prototype.getTile = function(tileX, tileY) {
 Game.prototype.collision = function (player) {
   this.enemies.forEach(function (enemy) {
     if(enemy.pos.x === player.pos.x && enemy.pos.y === player.pos.y) {
+      this.paused = true
       this.gameover = true
+      setTimeout(function () {
+        this.gameover = false
+        this.start()
+      }.bind(this), 5000)
     }
   }.bind(this))
 }
@@ -177,7 +184,7 @@ Game.prototype.spawnEnemy = function(pos){
 
 Game.prototype.randomSpawnEnemy = function (pos) {
   var size = this.tilesX * this.tilesY
-  var ghostProbability = (this.openTiles / (size*4))
+  var ghostProbability = (this.openTiles / (size*2))
   if(Math.random() < ghostProbability) {
     this.spawnEnemy(pos)
   }
