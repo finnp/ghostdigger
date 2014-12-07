@@ -32,9 +32,10 @@ window.onload = function () {
 
     player.sprite = images.player
     requestAnimationFrame(draw)
+    var fps = 60
     function draw(timestamp) {
       game.collision(player)
-
+      controller.update()
       player.update()
       game.enemies.forEach(function (enemy) {
         enemy.update()
@@ -90,7 +91,10 @@ window.onload = function () {
 
 
       // end
-      requestAnimationFrame(draw)
+      setTimeout(function() {
+        requestAnimationFrame(draw)
+      }, 1000/fps)
+
 
     }
   }
@@ -232,7 +236,6 @@ Player.prototype.update = function () {
 }
 
 Player.prototype.move = function () {
-  this.moving = false
   var isEnemy = this.game.enemies.some(function (enemy) {
     if(enemy.active) return false
     return enemy.pos.x === this.pos.x + this.direction.x &&
@@ -375,11 +378,13 @@ function Controller(player) {
   this. player = player
   this.player.moving = false
 
+  this.keysPressed = {}
+
   document.addEventListener('keydown', function (e) {
     e.preventDefault()
+    this.keysPressed[e.keyCode] = true
     if(e.keyCode in directions) {
       this.player.direction = directions[e.keyCode]
-      this.player.moving = true
     }
     else if(e.keyCode == 32) {
       this.player.mine()
@@ -388,8 +393,14 @@ function Controller(player) {
 
   document.addEventListener('keyup', function (e) {
     e.preventDefault()
-    if(e.keyCode in directions) {
-      this.player.moving = false
-    }
+    this.keysPressed[e.keyCode] = false
   }.bind(this))
+}
+
+Controller.prototype.update = function () {
+  this.player.moving = this.areArrowsPressed()
+}
+
+Controller.prototype.areArrowsPressed = function () {
+  return this.keysPressed[37] || this.keysPressed[38] || this.keysPressed[39] || this.keysPressed[40]
 }
