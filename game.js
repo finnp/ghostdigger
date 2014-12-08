@@ -173,32 +173,33 @@ Game.prototype.draw = function(timestamp) {
 
   // always show score
   context.fillStyle = 'yellow'
-  context.font = 'bold 16px Arial'
+  context.font = 'bold 16px Arcade'
   context.fillText(this.player.gold + '/' + this.totalGold + ' gold', this.width - 100, this.height - 20)
+
 
   if(this.state === 'gameover') {
     context.fillStyle = 'white'
-    context.font = 'bold 100px Arial'
+    context.font = 'bold 100px Arcade'
     context.fillText('Game Over!', 100, this.height/2 - 40)
-    context.font = 'bold 60px Arial'
+    context.font = 'bold 60px Arcade'
     context.fillText('You got ' + this.player.gold + ' gold!', 150, this.height/2 + 40)
   } else if(this.state === 'start') {
     context.fillStyle = 'rgba(255, 255, 255, 0.4)'
-    context.font = 'bold 100px Arial'
+    context.font = 'bold 100px Arcade'
     context.fillText('ghost digger', 100, this.height/2 - 200)
-    context.font = 'bold 30px Arial'
-    context.fillText('press <space> to start digging', 180, this.height/2 - 100)
+    context.font = 'bold 30px Arcade'
+    context.fillText('press space to start digging', 180, this.height/2 - 100)
     context.fillText('- move with arrow keys', 230, this.height/2 - 50)
     context.fillText('- collect all gold', 230, this.height/2 )
     context.fillText('- beware of ghosts!', 230, this.height/2 + 50)
   } else if(this.state === 'paused') {
     context.fillStyle = 'white'
-    context.font = 'bold 100px Arial'
+    context.font = 'bold 100px Arcade'
     context.fillText('Paused', 100, this.height/2)
   } else if(this.state === 'end') {
     context.fillStyle = 'white'
-    context.font = 'bold 100px Arial'
-    context.fillText('You won!', 100, this.height/2)
+    context.font = 'bold 100px Arcade'
+    context.fillText('You won!', 180, this.height/2)
   }
 
 }
@@ -311,7 +312,7 @@ Player.prototype.mine = function () {
   if (next.isDestructible){
     this.gold += next.gold
     if(this.gold === this.game.totalGold) {
-      this.game.state = 'end'
+      this.game.state =  'end'
     }
     this.game.randomSpawnEnemy(Object.create(next.pos))
     next.destroy()
@@ -441,12 +442,13 @@ function Controller(game) {
   this.keysPressed = {}
 
   this.spaceOnce = false
+  this.arrowDirection = {x: 1, y: 0}
 
   document.addEventListener('keydown', function (e) {
     e.preventDefault()
     this.keysPressed[e.keyCode] = true
     if(e.keyCode in directions) {
-      this.player.direction = directions[e.keyCode]
+      this.arrowDirection = directions[e.keyCode]
     }
     if(this.isSpace()) this.spaceOnce = true
 
@@ -459,6 +461,9 @@ function Controller(game) {
 }
 
 Controller.prototype.update = function (timestamp) {
+  if(this.game.state === 'playing' || this.game.state === 'start') {
+    this.player.direction = this.arrowDirection
+  }
   if(this.game.state === 'playing') {
     if(timestamp > this.player.timeout) {
       if(this.spaceOnce) {
@@ -471,15 +476,15 @@ Controller.prototype.update = function (timestamp) {
   } else {
     if(this.game.state === "paused"){
       if(this.spaceOnce) this.game.start() //  TODO: lol nope
-    } else if(this.game.state === "gameover"){
-      if(!this.gameoverTimeout)  {
-        this.gameoverTimeout = timestamp + 1000
+    } else if(this.game.state === "gameover" || this.game.state === 'end'){
+      if(!this.screenTimeout)  {
+        this.screenTimeout = timestamp + 1000
       }
-      if(this.spaceOnce && timestamp > this.gameoverTimeout) {
+      if(this.spaceOnce && timestamp > this.screenTimeout) {
         this.game.state = 'start'
         this.game.prepareGame()
         this.spaceOnce = false
-        this.gameoverTimeout = false
+        this.screenTimeout = false
       } else {
         this.spaceOnce = false
       }
