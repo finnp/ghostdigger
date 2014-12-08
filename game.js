@@ -66,7 +66,6 @@ Game.prototype.init = function () {
 }
 
 Game.prototype.start = function () {
-  this.prepareGame()
   this.state = 'playing'
 }
 
@@ -77,12 +76,13 @@ Game.prototype.prepareGame = function () {
   for(var i = 0; i < this.tilesY; i++) {
     this.tiles[i] = []
     for(var j = 0; j < this.tilesX; j++) {
-      var newTile = new Tile(this, j, i)
-      this.tiles[i][j] = newTile
-      this.totalGold += newTile.gold
       // borders
+      var newTile = new Tile(this, j, i)
       if(i === 0 || j === 0 || i === (this.tilesY - 1) || j === (this.tilesX - 1))
         newTile.isDestructible = false
+      this.tiles[i][j] = newTile
+      newTile.setRandomGold()
+      this.totalGold += newTile.gold
     }
   }
 
@@ -158,23 +158,32 @@ Game.prototype.draw = function(timestamp) {
 
   // display
 
-  if(this.state === 'playing' || this.state === 'gameover') {
-    context.fillStyle = 'yellow'
-    context.font = 'bold 16px Arial'
-    context.fillText(this.player.gold + '/' + this.totalGold + ' gold', this.width - 100, this.height - 20)
-  } 
+  // always show score
+  context.fillStyle = 'yellow'
+  context.font = 'bold 16px Arial'
+  context.fillText(this.player.gold + '/' + this.totalGold + ' gold', this.width - 100, this.height - 20)
+
   if(this.state === 'gameover') {
     context.fillStyle = 'white'
     context.font = 'bold 100px Arial'
     context.fillText('Game Over!', 100, this.height/2)
   } else if(this.state === 'start') {
-    context.fillStyle = 'white'
+    context.fillStyle = 'rgba(255, 255, 255, 0.4)'
     context.font = 'bold 100px Arial'
-    context.fillText('Let\'s go!', 100, this.height/2)
+    context.fillText('ghost digger', 100, this.height/2 - 200)
+    context.font = 'bold 30px Arial'
+    context.fillText('press <space> to start digging', 180, this.height/2 - 100)
+    context.fillText('- move with arrow keys', 230, this.height/2 - 50)
+    context.fillText('- collect all gold', 230, this.height/2 )
+    context.fillText('- beware of ghosts!', 230, this.height/2 + 50)
   } else if(this.state === 'paused') {
     context.fillStyle = 'white'
     context.font = 'bold 100px Arial'
     context.fillText('Paused', 100, this.height/2)
+  } else if(this.state === 'end') {
+    context.fillStyle = 'white'
+    context.font = 'bold 100px Arial'
+    context.fillText('You won!', 100, this.height/2)
   }
 
 }
@@ -286,6 +295,9 @@ Player.prototype.mine = function () {
   var next = this.nextTile()
   if (next.isDestructible){
     this.gold += next.gold
+    if(this.gold === this.game.totalGold) {
+      this.game.state === 'end'
+    }
     this.game.randomSpawnEnemy(Object.create(next.pos))
     next.destroy()
   }
@@ -360,9 +372,12 @@ function Tile(game, x, y) {
   this.y = y
   this.pos = {x: x, y: y}
   this.isWall = true
-  this.gold = Math.random() < 0.05
   this.isDestructible = Math.random() < 0.95
   this.discovered = false
+}
+
+Tile.prototype.setRandomGold = function () {
+  this.gold = (this.isWall && this.isDestructible) ? (Math.random() < 0.05) : 0
 }
 
 Tile.prototype.destroy = function () {
@@ -442,13 +457,18 @@ Controller.prototype.update = function (timestamp) {
     }
   } else {
     if(this.game.state === "paused"){
-      if(this.spaceOnce) this.game.start() // lol nope
+      if(this.spaceOnce) this.game.start() //  TODO: lol nope
     } else if(this.game.state === "gameover"){
-      if(this.spaceOnce) this.game.state = 'start'
+      if(this.spaceOnce) {
+        this.game.state = 'start'
+        this.game.prepareGame()
+        this.spaceOnce = false
+      }
     } else if(this.game.state === "start"){
-      if(this.spaceOnce) this.game.start()
+      if(this.spaceOnce) {
+        this.game.start()
+      }
     }
-    this.spaceOnce = false
   }
 }
 
