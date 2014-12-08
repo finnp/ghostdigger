@@ -172,17 +172,22 @@ Game.prototype.draw = function(timestamp) {
   // display
 
   // always show score
-  context.fillStyle = 'yellow'
-  context.font = 'bold 16px Arcade'
-  context.fillText(this.player.gold + '/' + this.totalGold + ' gold', this.width - 100, this.height - 20)
+  context.fillStyle = 'rgba(255, 215, 0, 0.7)'
+  context.font = 'bold 32px Arcade'
+  var goldtext = this.player.gold + ''
+  if(this.player.gold <= 99) goldtext = '0' + goldtext
+  if(this.player.gold <= 9) goldtext = '0' + goldtext
+  context.fillText(goldtext + '/' + this.totalGold + ' gold', this.width - 220, 32)
 
 
   if(this.state === 'gameover') {
-    context.fillStyle = 'white'
+    context.fillStyle = 'rgba(0,0,0,0.3)'
+    context.fillRect(0,0,this.width,this.height)
+    context.fillStyle = 'rgba(255,255,255, 0.4)'
     context.font = 'bold 100px Arcade'
-    context.fillText('Game Over!', 100, this.height/2 - 40)
+    context.fillText('Game Over', 170, this.height/2 - 40)
     context.font = 'bold 60px Arcade'
-    context.fillText('You got ' + this.player.gold + ' gold!', 150, this.height/2 + 40)
+    context.fillText('You got ' + this.player.gold + ' gold', 190, this.height/2 + 40)
   } else if(this.state === 'start') {
     context.fillStyle = 'rgba(255, 255, 255, 0.4)'
     context.font = 'bold 100px Arcade'
@@ -191,7 +196,7 @@ Game.prototype.draw = function(timestamp) {
     context.fillText('press space to start digging', 180, this.height/2 - 100)
     context.fillText('- move with arrow keys', 230, this.height/2 - 50)
     context.fillText('- collect all gold', 230, this.height/2 )
-    context.fillText('- beware of ghosts!', 230, this.height/2 + 50)
+    context.fillText('- beware of ghosts', 230, this.height/2 + 50)
   } else if(this.state === 'paused') {
     context.fillStyle = 'white'
     context.font = 'bold 100px Arcade'
