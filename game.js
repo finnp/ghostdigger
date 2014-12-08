@@ -12,7 +12,7 @@ window.onload = function () {
 
 
   game.loadImages(function () {
-    game.start()
+    game.init()
   })
 }
 
@@ -28,6 +28,8 @@ function Game(width, height) {
 
   this.offsetX = this.width / this.tilesX
   this.offsetY = this.height / this.tilesY
+
+  this.state = "start" // possible states: start, paused, playing, end, gameover
 }
 
 Game.prototype.loadImages = function (cb) {
@@ -56,17 +58,29 @@ Game.prototype.loadImages = function (cb) {
   }
 }
 
+Game.prototype.init = function () {
+  this.prepareGame()
+
+  if(this.req) cancelAnimationFrame(this.req)
+  this.req = requestAnimationFrame(this.loop.bind(this))
+}
+
 Game.prototype.start = function () {
-  console.log('Start game')
-  this.paused = false
-  //tiles
+  this.prepareGame()
+  this.state = 'playing'
+}
+
+Game.prototype.prepareGame = function () {
   this.openTiles = 0
+  this.totalGold = 0
   this.tiles = []
   for(var i = 0; i < this.tilesY; i++) {
     this.tiles[i] = []
     for(var j = 0; j < this.tilesX; j++) {
       var newTile = new Tile(this, j, i)
       this.tiles[i][j] = newTile
+      this.totalGold += newTile.gold
+      // borders
       if(i === 0 || j === 0 || i === (this.tilesY - 1) || j === (this.tilesX - 1))
         newTile.isDestructible = false
     }
@@ -75,19 +89,16 @@ Game.prototype.start = function () {
   this.player = new Player(this)
   this.player.sprite = this.images.player
 
-  this.controller = new Controller(this.player)
+  this.controller = new Controller(this)
   this.enemies = []
-
-  if(this.req) cancelAnimationFrame(this.req)
-  this.req = requestAnimationFrame(this.loop.bind(this))
-
 }
+
 
 Game.prototype.loop = function (timestamp) {
   // GameLoop
   this.timestamp = timestamp
 
-  if(!this.paused) this.update(timestamp)
+  this.update(timestamp)
   this.draw(timestamp)
 
   // end
@@ -95,12 +106,14 @@ Game.prototype.loop = function (timestamp) {
 }
 
 Game.prototype.update = function (timestamp) {
-  this.collision(this.player)
-  this.controller.update(timestamp)
-  this.player.update(timestamp)
-  this.enemies.forEach(function (enemy) {
-    enemy.update(timestamp)
-  })
+  this.controller.update(timestamp, this.state)
+  if (this.state === "playing"){
+    this.collision(this.player)
+    this.player.update(timestamp)
+    this.enemies.forEach(function (enemy) {
+      enemy.update(timestamp)
+    })
+  }
 }
 
 Game.prototype.draw = function(timestamp) {
@@ -145,15 +158,22 @@ Game.prototype.draw = function(timestamp) {
 
   // display
 
-  context.fillStyle = 'yellow'
-  context.font = 'bold 16px Arial'
-  context.fillText(this.player.gold + ' gold', this.width - 70, this.height - 20)
-  context.fillText(this.openTiles + ' open', this.width - 70, this.height - 60)
-
-  if(this.gameover) {
+  if(this.state === 'playing' || this.state === 'gameover') {
+    context.fillStyle = 'yellow'
+    context.font = 'bold 16px Arial'
+    context.fillText(this.player.gold + '/' + this.totalGold + ' gold', this.width - 100, this.height - 20)
+  } else if(this.state === 'gameover') {
     context.fillStyle = 'white'
     context.font = 'bold 100px Arial'
     context.fillText('Game Over!', 100, this.height/2)
+  } else if(this.state === 'start') {
+    context.fillStyle = 'white'
+    context.font = 'bold 100px Arial'
+    context.fillText('Let\'s go!', 100, this.height/2)
+  } else if(this.state === 'paused') {
+    context.fillStyle = 'white'
+    context.font = 'bold 100px Arial'
+    context.fillText('Paused', 100, this.height/2)
   }
 
 }
@@ -165,12 +185,7 @@ Game.prototype.getTile = function(tileX, tileY) {
 Game.prototype.collision = function (player) {
   this.enemies.forEach(function (enemy) {
     if(enemy.pos.x === player.pos.x && enemy.pos.y === player.pos.y) {
-      this.paused = true
-      this.gameover = true
-      setTimeout(function () {
-        this.gameover = false
-        this.start()
-      }.bind(this), 5000)
+      this.state = 'gameover'
     }
   }.bind(this))
 }
@@ -183,8 +198,9 @@ Game.prototype.spawnEnemy = function(pos){
 }
 
 Game.prototype.randomSpawnEnemy = function (pos) {
+  var nEnemies = this.enemies.length
   var size = this.tilesX * this.tilesY
-  var ghostProbability = (this.openTiles / (size*2))
+  var ghostProbability = (this.openTiles / ((nEnemies + 1)*1000))
   if(Math.random() < ghostProbability) {
     this.spawnEnemy(pos)
   }
@@ -299,7 +315,7 @@ function Enemy(game) {
 
   this.direction = this.directions[0]
   this.timeout = this.game.timestamp + 3000
-  this.stepTime = 100
+  this.stepTime = 200
   this.active = false
 
 }
@@ -383,18 +399,19 @@ Tile.prototype.getDirectNeighbours = function () {
 
 
 //CONTROLLER
-function Controller(player) {
+function Controller(game) {
   var directions = {
     37: {x: -1, y: 0},
     39: {x: 1, y: 0},
     38: {x: 0, y: -1},
     40: {x: 0, y: 1},
   }
-  this. player = player
+  this.game = game
+  this.player = game.player
 
   this.keysPressed = {}
 
-  this.doMine = false
+  this.spaceOnce = false
 
   document.addEventListener('keydown', function (e) {
     e.preventDefault()
@@ -402,7 +419,7 @@ function Controller(player) {
     if(e.keyCode in directions) {
       this.player.direction = directions[e.keyCode]
     }
-    if(this.isSpace()) this.doMine = true
+    if(this.isSpace()) this.spaceOnce = true
 
   }.bind(this))
 
@@ -413,13 +430,24 @@ function Controller(player) {
 }
 
 Controller.prototype.update = function (timestamp) {
-  if(timestamp > this.player.timeout) {
-    if(this.doMine) {
-      this.doMine = false
-      this.player.mine()
+  if(this.game.state === 'playing') {
+    if(timestamp > this.player.timeout) {
+      if(this.spaceOnce) {
+        this.spaceOnce = false
+        this.player.mine()
+      }
+      if(this.areArrowsPressed()) this.player.move()
+      this.player.timeout = timestamp + this.player.stepTime
     }
-    if(this.areArrowsPressed()) this.player.move()
-    this.player.timeout = timestamp + this.player.stepTime
+  } else {
+    if(this.game.state === "paused"){
+      if(this.spaceOnce) this.game.start() // lol nope
+    } else if(this.game.state === "gameover"){
+      if(this.spaceOnce) this.game.state = 'start'
+    } else if(this.game.state === "start"){
+      if(this.spaceOnce) this.game.start()
+    }
+    this.spaceOnce = false
   }
 }
 
