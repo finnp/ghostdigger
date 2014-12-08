@@ -69,10 +69,12 @@ Game.prototype.start = function () {
   this.state = 'playing'
 }
 
+
 Game.prototype.prepareGame = function () {
   this.openTiles = 0
-  this.totalGold = 0
+  this.totalGold = 100
   this.tiles = []
+
   for(var i = 0; i < this.tilesY; i++) {
     this.tiles[i] = []
     for(var j = 0; j < this.tilesX; j++) {
@@ -81,8 +83,19 @@ Game.prototype.prepareGame = function () {
       if(i === 0 || j === 0 || i === (this.tilesY - 1) || j === (this.tilesX - 1))
         newTile.isDestructible = false
       this.tiles[i][j] = newTile
-      newTile.setRandomGold()
-      this.totalGold += newTile.gold
+    }
+  }
+
+  var goldTodo = this.totalGold
+  while(goldTodo > 0) {
+    var randomPos = {
+      x: Math.floor(Math.random() * this.tilesX),
+      y: Math.floor(Math.random() * this.tilesY)
+    }
+    var randomTile = this.tiles[randomPos.y][randomPos.x]
+    if(randomTile.isDestructible && !randomTile.gold) {
+      randomTile.gold = true
+      goldTodo--
     }
   }
 
@@ -166,7 +179,9 @@ Game.prototype.draw = function(timestamp) {
   if(this.state === 'gameover') {
     context.fillStyle = 'white'
     context.font = 'bold 100px Arial'
-    context.fillText('Game Over!', 100, this.height/2)
+    context.fillText('Game Over!', 100, this.height/2 - 40)
+    context.font = 'bold 60px Arial'
+    context.fillText('You got ' + this.player.gold + ' gold!', 150, this.height/2 + 40)
   } else if(this.state === 'start') {
     context.fillStyle = 'rgba(255, 255, 255, 0.4)'
     context.font = 'bold 100px Arial'
@@ -296,7 +311,7 @@ Player.prototype.mine = function () {
   if (next.isDestructible){
     this.gold += next.gold
     if(this.gold === this.game.totalGold) {
-      this.game.state === 'end'
+      this.game.state = 'end'
     }
     this.game.randomSpawnEnemy(Object.create(next.pos))
     next.destroy()
@@ -374,11 +389,9 @@ function Tile(game, x, y) {
   this.isWall = true
   this.isDestructible = Math.random() < 0.95
   this.discovered = false
+  this.gold = 0
 }
 
-Tile.prototype.setRandomGold = function () {
-  this.gold = (this.isWall && this.isDestructible) ? (Math.random() < 0.05) : 0
-}
 
 Tile.prototype.destroy = function () {
 
@@ -459,9 +472,15 @@ Controller.prototype.update = function (timestamp) {
     if(this.game.state === "paused"){
       if(this.spaceOnce) this.game.start() //  TODO: lol nope
     } else if(this.game.state === "gameover"){
-      if(this.spaceOnce) {
+      if(!this.gameoverTimeout)  {
+        this.gameoverTimeout = timestamp + 1000
+      }
+      if(this.spaceOnce && timestamp > this.gameoverTimeout) {
         this.game.state = 'start'
         this.game.prepareGame()
+        this.spaceOnce = false
+        this.gameoverTimeout = false
+      } else {
         this.spaceOnce = false
       }
     } else if(this.game.state === "start"){
