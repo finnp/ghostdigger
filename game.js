@@ -18,8 +18,25 @@ window.onload = function () {
 
 //------CLASSES------//
 
+function Sounds() {
+  // the game should feel like this track's beginning: https://soundcloud.com/protohype/8-bit-ghost
+  this.files = {
+    dig: 'audio/dig.wav',
+    ghost: 'audio/ghost.wav'
+  }
+  this.muted = true
+}
+
+Sounds.prototype.play = function (sound) {
+  if(!this.muted) {
+    new Audio(this.files[sound]).play()
+  }
+}
+
+
 //GAME
 function Game(width, height) {
+  
   this.width = width
   this.height = height
 
@@ -43,6 +60,7 @@ Game.prototype.loadImages = function (cb) {
     stone: 'img/stone.png'
   }
   this.images = {}
+  this.sounds = new Sounds()
   var n = Object.keys(toLoad).length
 
   for(imageName in toLoad) {
@@ -183,7 +201,7 @@ Game.prototype.draw = function(timestamp) {
   if(this.state === 'gameover') {
     context.fillStyle = 'rgba(0,0,0,0.3)'
     context.fillRect(0,0,this.width,this.height)
-    context.fillStyle = 'rgba(255,255,255, 0.4)'
+    context.fillStyle = 'rgba(255,255,255, 0.8)'
     context.font = 'bold 100px Arcade'
     context.fillText('Game Over', 170, this.height/2 - 40)
     context.font = 'bold 60px Arcade'
@@ -222,6 +240,7 @@ Game.prototype.collision = function (player) {
 }
 
 Game.prototype.spawnEnemy = function(pos){
+  this.sounds.play('ghost')
   var enemy = new Enemy(this)
   enemy.pos = pos
   enemy.sprite = this.images.ghost
@@ -315,6 +334,7 @@ Player.prototype.move = function () {
 Player.prototype.mine = function () {
   var next = this.nextTile()
   if (next.isDestructible){
+    this.game.sounds.play('dig')
     this.gold += next.gold
     if(this.gold === this.game.totalGold) {
       this.game.state =  'end'
