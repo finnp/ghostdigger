@@ -147,6 +147,10 @@ Game.prototype.update = function (timestamp) {
   }
 }
 
+function distance(x, y, pos2) {
+  return Math.sqrt(Math.pow(x - pos2.x, 2) + Math.pow(y - pos2.y, 2))
+}
+
 Game.prototype.draw = function(timestamp) {
   var images = this.images
   for(var i = 0; i < this.tilesY; i++) {
@@ -168,13 +172,22 @@ Game.prototype.draw = function(timestamp) {
       } else {
         tileSprite = images.floor
       }
-
+      
       this.context.drawImage(tileSprite,
         Math.floor(this.offsetX * j),
         Math.floor(this.offsetY * i),
         Math.floor(this.offsetX),
         Math.floor(this.offsetY)
       )
+      this.context.fillStyle = "rgba(0,0,0,0.4)"
+      if(distance(j, i, this.player.pos) > 6) {
+        this.context.fillRect(
+          Math.floor(this.offsetX * j),
+          Math.floor(this.offsetY * i),
+          Math.floor(this.offsetX),
+          Math.floor(this.offsetY)
+        )
+      }
     }
   }
 
