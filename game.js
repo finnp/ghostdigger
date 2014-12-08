@@ -162,7 +162,8 @@ Game.prototype.draw = function(timestamp) {
     context.fillStyle = 'yellow'
     context.font = 'bold 16px Arial'
     context.fillText(this.player.gold + '/' + this.totalGold + ' gold', this.width - 100, this.height - 20)
-  } else if(this.state === 'gameover') {
+  } 
+  if(this.state === 'gameover') {
     context.fillStyle = 'white'
     context.font = 'bold 100px Arial'
     context.fillText('Game Over!', 100, this.height/2)
