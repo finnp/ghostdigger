@@ -10,17 +10,26 @@
       background-color: black;
     }
     
-    #game {    
+    h1 {
+      font-family: "Arcade";
+      font-size: 128px;
+      color: white;
+      height: 30px;
+    }
+    
+    #screen {    
       padding-left: 0;
       padding-right: 0;
-      width: 800px;
-      height: 640px;
       margin-left: auto;
+      width: 800px;
       margin-right: auto;
       display: block;
     }
     </style>
+    <div id="screen">
+    <h1>ghost digger</h1>
     <canvas id="game" width="800" height="640"></canvas>
+    </div>
     <script src="game.js"></script>
   </head>
   <body>
