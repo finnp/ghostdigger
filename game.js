@@ -1,12 +1,8 @@
 window.onload = function () {
-  var canvas = document.createElement('canvas') // <canvas id="game"></canvas>
-  canvas.id = 'game'
-
-  canvas.width = 800
-  canvas.height = 640
+  var canvas = document.querySelector('#game')
 
   var game = new Game(canvas.width, canvas.height)
-  document.body.appendChild(canvas)
+
   if(typeof canvas == 'string') canvas = getElementById(canvas.id) // in case browser returns string
   game.context = canvas.getContext('2d')
 
@@ -481,6 +477,7 @@ function Controller(game) {
   this.spaceOnce = false
   this.arrowDirection = {x: 1, y: 0}
 
+
   document.addEventListener('keydown', function (e) {
     e.preventDefault()
     this.keysPressed[e.keyCode] = true
@@ -488,7 +485,6 @@ function Controller(game) {
       this.arrowDirection = directions[e.keyCode]
     }
     if(this.isSpace()) this.spaceOnce = true
-
   }.bind(this))
 
   document.addEventListener('keyup', function (e) {
