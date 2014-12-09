@@ -173,7 +173,7 @@ Game.prototype.draw = function(timestamp) {
         Math.floor(this.offsetY)
       )
       this.context.fillStyle = "rgba(0,0,0,0.4)"
-      if(this.player.distance(j, i) > 6) {
+      if(this.player.distance(j, i) > 36) {
         this.context.fillRect(
           Math.floor(this.offsetX * j),
           Math.floor(this.offsetY * i),
@@ -189,7 +189,7 @@ Game.prototype.draw = function(timestamp) {
   // draw player
   this.player.render(context)
   this.enemies.forEach(function (enemy) {
-    if(this.player.distance(enemy.pos.x, enemy.pos.y) <= 6) {
+    if(this.player.distance(enemy.pos.x, enemy.pos.y) <= 36) {
       enemy.render(context)
     }
   }.bind(this))
@@ -217,7 +217,7 @@ Game.prototype.draw = function(timestamp) {
   } else if(this.state === 'start') {
     context.fillStyle = 'rgba(255, 255, 255, 0.4)'
     context.font = 'bold 100px Arcade'
-    context.fillText('ghost digger', 100, this.height/2 - 200)
+    context.fillText('ghost digger', 85, this.height/2 - 200)
     context.font = 'bold 30px Arcade'
     context.fillText('press space to start digging', 180, this.height/2 - 100)
     context.fillText('- move with arrow keys', 230, this.height/2 - 50)
@@ -324,7 +324,8 @@ function Player(game) {
 Player.prototype = Object.create(Character.prototype)
 
 Player.prototype.distance = function (x, y) {
-  return Math.sqrt(Math.pow(x - this.pos.x, 2) + Math.pow(y - this.pos.y, 2))
+  //squared
+  return Math.pow(x - this.pos.x, 2) + Math.pow(y - this.pos.y, 2)
 }
 
 Player.prototype.move = function () {
