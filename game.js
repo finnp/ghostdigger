@@ -140,16 +140,13 @@ Game.prototype.update = function (timestamp) {
   this.controller.update(timestamp, this.state)
   if (this.state === "playing"){
     this.collision(this.player)
-    this.player.update(timestamp)
     this.enemies.forEach(function (enemy) {
       enemy.update(timestamp)
     })
   }
 }
 
-function distance(x, y, pos2) {
-  return Math.sqrt(Math.pow(x - pos2.x, 2) + Math.pow(y - pos2.y, 2))
-}
+
 
 Game.prototype.draw = function(timestamp) {
   var images = this.images
@@ -180,7 +177,7 @@ Game.prototype.draw = function(timestamp) {
         Math.floor(this.offsetY)
       )
       this.context.fillStyle = "rgba(0,0,0,0.4)"
-      if(distance(j, i, this.player.pos) > 6) {
+      if(this.player.distance(j, i) > 6) {
         this.context.fillRect(
           Math.floor(this.offsetX * j),
           Math.floor(this.offsetY * i),
@@ -195,10 +192,12 @@ Game.prototype.draw = function(timestamp) {
 
   // draw player
   this.player.render(context)
-
   this.enemies.forEach(function (enemy) {
-    enemy.render(context)
-  })
+    if(this.player.distance(enemy.pos.x, enemy.pos.y) <= 6) {
+      enemy.render(context)
+    }
+  }.bind(this))
+    
 
   // display
 
@@ -276,14 +275,14 @@ function Character(game) {
 }
 
 Character.prototype.render = function (context) {
-  context.save()
-  context.translate(this.pos.x * this.width, this.pos.y * this.height)
-  context.translate(this.width / 2, this.height / 2)
-  context.rotate(this.angle())
-  context.drawImage(this.sprite,
-    -this.width / 2, -this.height / 2, this.width, this.height
-  )
-  context.restore()
+    context.save()
+    context.translate(this.pos.x * this.width, this.pos.y * this.height)
+    context.translate(this.width / 2, this.height / 2)
+    context.rotate(this.angle())
+    context.drawImage(this.sprite,
+      -this.width / 2, -this.height / 2, this.width, this.height
+    )
+    context.restore()
 }
 
 Character.prototype.angle = function () {
@@ -328,8 +327,8 @@ function Player(game) {
 
 Player.prototype = Object.create(Character.prototype)
 
-Player.prototype.update = function () {
- // nope
+Player.prototype.distance = function (x, y) {
+  return Math.sqrt(Math.pow(x - this.pos.x, 2) + Math.pow(y - this.pos.y, 2))
 }
 
 Player.prototype.move = function () {
